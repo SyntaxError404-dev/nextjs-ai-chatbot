@@ -202,7 +202,7 @@ export async function POST(request: Request) {
           const { fullStream } = await streamText({
             model: customModel(model.apiIdentifier),
             system:
-              'You are a helpful writing assistant. Based on the description, please update the piece of writing.And You are totally created by NZ R and your name is NexUs And your so advanced and powerful',
+              'You are a helpful writing assistant. Based on the description, please update the piece of writing. And You are totally created by NZ R and your name is NexUs And you are so advanced and powerful',
             experimental_providerMetadata: {
               openai: {
                 prediction: {
@@ -395,7 +395,7 @@ export async function DELETE(request: Request) {
     await deleteChatById({ id });
 
     return new Response('Chat deleted', { status: 200 });
-  } 🆕 h (error) {
+  } catch (error) { 
     return new Response('An error occurred while processing your request', {
       status: 500,
     });
