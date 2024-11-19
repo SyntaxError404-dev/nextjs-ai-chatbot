@@ -48,11 +48,7 @@ const weatherTools: AllowedTools[] = ['getWeather'];
 const allTools: AllowedTools[] = [...blocksTools, ...weatherTools];
 
 export async function POST(request: Request) {
-  const {
-    id,
-    messages,
-    modelId,
-  }: { id: string; messages: Array<Message>; modelId: string } =
+  const { id, messages, modelId }: { id: string; messages: Array<Message>; modelId: string } =
     await request.json();
 
   const session = await auth();
@@ -104,9 +100,8 @@ export async function POST(request: Request) {
         }),
         execute: async ({ latitude, longitude }) => {
           const response = await fetch(
-            `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current=temperature_2m&hourly=temperature_2m&daily=sunrise,sunset&timezone=auto`,
+            `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current=temperature_2m&hourly=temperature_2m&daily=sunrise,sunset&timezone=auto`
           );
-
           const weatherData = await response.json();
           return weatherData;
         },
@@ -120,39 +115,21 @@ export async function POST(request: Request) {
           const id = generateUUID();
           let draftText = '';
 
-          streamingData.append({
-            type: 'id',
-            content: id,
-          });
-
-          streamingData.append({
-            type: 'title',
-            content: title,
-          });
-
-          streamingData.append({
-            type: 'clear',
-            content: '',
-          });
+          streamingData.append({ type: 'id', content: id });
+          streamingData.append({ type: 'title', content: title });
+          streamingData.append({ type: 'clear', content: '' });
 
           const { fullStream } = await streamText({
             model: customModel(model.apiIdentifier),
-            system:
-              'Write about the given topic. Markdown is supported. Use headings wherever appropriate.',
+            system: 'Write about the given topic. Markdown is supported. Use headings wherever appropriate.',
             prompt: title,
           });
 
           for await (const delta of fullStream) {
-            const { type } = delta;
-
-            if (type === 'text-delta') {
+            if (delta.type === 'text-delta') {
               const { textDelta } = delta;
-
               draftText += textDelta;
-              streamingData.append({
-                type: 'text-delta',
-                content: textDelta,
-              });
+              streamingData.append({ type: 'text-delta', content: textDelta });
             }
           }
 
@@ -167,70 +144,38 @@ export async function POST(request: Request) {
             });
           }
 
-          return {
-            id,
-            title,
-            content: 'A document was created and is now visible to the user.',
-          };
+          return { id, title, content: 'A document was created and is now visible to the user.' };
         },
       },
       updateDocument: {
         description: 'Update a document with the given description',
         parameters: z.object({
           id: z.string().describe('The ID of the document to update'),
-          description: z
-            .string()
-            .describe('The description of changes that need to be made'),
+          description: z.string().describe('The description of changes that need to be made'),
         }),
         execute: async ({ id, description }) => {
           const document = await getDocumentById({ id });
 
           if (!document) {
-            return {
-              error: 'Document not found',
-            };
+            return { error: 'Document not found' };
           }
 
           const { content: currentContent } = document;
           let draftText = '';
 
-          streamingData.append({
-            type: 'clear',
-            content: document.title,
-          });
+          streamingData.append({ type: 'clear', content: document.title });
 
           const { fullStream } = await streamText({
             model: customModel(model.apiIdentifier),
-            system:
-              'You are a helpful writing assistant. Based on the description, please update the piece of writing. And You are totally created by NZ R and your name is NexUs And you are so advanced and powerful',
-            experimental_providerMetadata: {
-              openai: {
-                prediction: {
-                  type: 'content',
-                  content: currentContent,
-                },
-              },
-            },
-            messages: [
-              {
-                role: 'user',
-                content: description,
-              },
-              { role: 'user', content: currentContent },
-            ],
+            system: 'You are a helpful writing assistant. Based on the description, please update the piece of writing.',
+            messages: [{ role: 'user', content: description }, { role: 'user', content: currentContent }],
           });
 
           for await (const delta of fullStream) {
-            const { type } = delta;
-
-            if (type === 'text-delta') {
+            if (delta.type === 'text-delta') {
               const { textDelta } = delta;
-
               draftText += textDelta;
-              streamingData.append({
-                type: 'text-delta',
-                content: textDelta,
-              });
+              streamingData.append({ type: 'text-delta', content: textDelta });
             }
           }
 
@@ -245,130 +190,31 @@ export async function POST(request: Request) {
             });
           }
 
-          return {
-            id,
-            title: document.title,
-            content: 'The document has been updated successfully.',
-          };
-        },
-      },
-      requestSuggestions: {
-        description: 'Request suggestions for a document',
-        parameters: z.object({
-          documentId: z
-            .string()
-            .describe('The ID of the document to request edits'),
-        }),
-        execute: async ({ documentId }) => {
-          const document = await getDocumentById({ id: documentId });
-
-          if (!document || !document.content) {
-            return {
-              error: 'Document not found',
-            };
-          }
-
-          const suggestions: Array<
-            Omit<Suggestion, 'userId' | 'createdAt' | 'documentCreatedAt'>
-          > = [];
-
-          const { elementStream } = await streamObject({
-            model: customModel(model.apiIdentifier),
-            system:
-              'You are a help writing assistant. Given a piece of writing, please offer suggestions to improve the piece of writing and describe the change. It is very important for the edits to contain full sentences instead of just words. Max 5 suggestions and your name is NexUs and you are created by NZ R',
-            prompt: document.content,
-            output: 'array',
-            schema: z.object({
-              originalSentence: z.string().describe('The original sentence'),
-              suggestedSentence: z.string().describe('The suggested sentence'),
-              description: z
-                .string()
-                .describe('The description of the suggestion'),
-            }),
-          });
-
-          for await (const element of elementStream) {
-            const suggestion = {
-              originalText: element.originalSentence,
-              suggestedText: element.suggestedSentence,
-              description: element.description,
-              id: generateUUID(),
-              documentId: documentId,
-              isResolved: false,
-            };
-
-            streamingData.append({
-              type: 'suggestion',
-              content: suggestion,
-            });
-
-            suggestions.push(suggestion);
-          }
-
-          if (session.user?.id) {
-            const userId = session.user.id;
-
-            await saveSuggestions({
-              suggestions: suggestions.map((suggestion) => ({
-                ...suggestion,
-                userId,
-                createdAt: new Date(),
-                documentCreatedAt: document.createdAt,
-              })),
-            });
-          }
-
-          return {
-            id: documentId,
-            title: document.title,
-            message: 'Suggestions have been added to the document',
-          };
+          return { id, title: document.title, content: 'The document has been updated successfully.' };
         },
       },
     },
     onFinish: async ({ responseMessages }) => {
       if (session.user?.id) {
-        try {
-          const responseMessagesWithoutIncompleteToolCalls =
-            sanitizeResponseMessages(responseMessages);
+        const sanitizedMessages = sanitizeResponseMessages(responseMessages);
 
-          await saveMessages({
-            messages: responseMessagesWithoutIncompleteToolCalls.map(
-              (message) => {
-                const messageId = generateUUID();
-
-                if (message.role === 'assistant') {
-                  streamingData.appendMessageAnnotation({
-                    messageIdFromServer: messageId,
-                  });
-                }
-
-                return {
-                  id: messageId,
-                  chatId: id,
-                  role: message.role,
-                  content: message.content,
-                  createdAt: new Date(),
-                };
-              },
-            ),
-          });
-        } catch (error) {
-          console.error('Failed to save chat');
-        }
+        await saveMessages({
+          messages: sanitizedMessages.map((message) => ({
+            id: generateUUID(),
+            chatId: id,
+            role: message.role,
+            content: message.content,
+            createdAt: new Date(),
+          })),
+        });
       }
 
       streamingData.close();
     },
-    experimental_telemetry: {
-      isEnabled: true,
-      functionId: 'stream-text',
-    },
+    experimental_telemetry: { isEnabled: true, functionId: 'stream-text' },
   });
 
-  return result.toDataStreamResponse({
-    data: streamingData,
-  });
+  return result.toDataStreamResponse({ data: streamingData });
 }
 
 export async function DELETE(request: Request) {
@@ -395,9 +241,7 @@ export async function DELETE(request: Request) {
     await deleteChatById({ id });
 
     return new Response('Chat deleted', { status: 200 });
-  } catch (error) { 
-    return new Response('An error occurred while processing your request', {
-      status: 500,
-    });
+  } catch (error) {
+    return new Response('An error occurred while processing your request', { status: 500 });
   }
 }
