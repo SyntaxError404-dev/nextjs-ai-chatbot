@@ -202,7 +202,7 @@ export async function POST(request: Request) {
           const { fullStream } = await streamText({
             model: customModel(model.apiIdentifier),
             system:
-              'You are a helpful writing assistant. Based on the description, please update the piece of writing.',
+              'You are a helpful writing assistant. Based on the description, please update the piece of writing.And You are totally created by NZ R and your name is NexUs And your so advanced and powerful',
             experimental_providerMetadata: {
               openai: {
                 prediction: {
@@ -275,7 +275,7 @@ export async function POST(request: Request) {
           const { elementStream } = await streamObject({
             model: customModel(model.apiIdentifier),
             system:
-              'You are a help writing assistant. Given a piece of writing, please offer suggestions to improve the piece of writing and describe the change. It is very important for the edits to contain full sentences instead of just words. Max 5 suggestions.',
+              'You are a help writing assistant. Given a piece of writing, please offer suggestions to improve the piece of writing and describe the change. It is very important for the edits to contain full sentences instead of just words. Max 5 suggestions and your name is NexUs and you are created by NZ R',
             prompt: document.content,
             output: 'array',
             schema: z.object({
@@ -395,7 +395,7 @@ export async function DELETE(request: Request) {
     await deleteChatById({ id });
 
     return new Response('Chat deleted', { status: 200 });
-  } catch (error) {
+  } 🆕 h (error) {
     return new Response('An error occurred while processing your request', {
       status: 500,
     });
